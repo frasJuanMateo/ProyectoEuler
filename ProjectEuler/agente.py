@@ -35,31 +35,38 @@ La última línea de salida debe ser únicamente la respuesta final como entero.
 Elegí un algoritmo que termine en menos de {TIMEOUT_EJECUCION} segundos.
 """
 
-def generar_con_reintentos(funcion, max_reintentos=5):
-    for intento in range(max_reintentos):
+
+def generar_con_reintentos(funcion, max_reintentos=3):
+    for intento in range(1, max_reintentos + 1):
         try:
             return funcion()
 
         except Exception as error:
             mensaje = str(error).lower()
 
-            # Identificar errores temporales de Gemini
             temporal = any(palabra in mensaje for palabra in [
                 "high demand",
                 "503",
+                "504",
                 "429",
+                "deadline_exceeded",
+                "deadline expired",
                 "resource_exhausted",
-                "unavailable"
+                "unavailable",
+                "timeout",
+                "timed out"
             ])
 
-            if not temporal or intento == max_reintentos - 1:
+            if not temporal or intento == max_reintentos:
                 raise
 
-            espera = min(5 * (2 ** intento), 60)
+            espera = min(5 * (2 ** (intento - 1)), 60)
+            espera += random.uniform(0, 2)
 
+            print(f"\nGemini no pudo responder: {error}")
             print(
-                f"Gemini está saturado. "
-                f"Reintentando en {espera} segundos..."
+                f"Reintento {intento}/{max_reintentos - 1} "
+                f"en {espera:.1f} segundos..."
             )
 
             time.sleep(espera)
@@ -121,11 +128,18 @@ def llamar_gemini(cliente, historial):
             config=types.GenerateContentConfig(
                 system_instruction=SYSTEM_PROMPT,
                 temperature=0.2,
+                http_options=types.HttpOptions(
+                    timeout=45000,
+                    retry_options=types.HttpRetryOptions(
+                        attempts=1,
+                        http_status_codes=[408, 429, 500, 502, 503, 504],
+                    ),
+                ),
             ),
         )
         return respuesta.text or ""
 
-    return generar_con_reintentos(solicitar)
+    return generar_con_reintentos(solicitar, max_reintentos=3)
 
 
 def extraer_codigo(respuesta):
@@ -141,6 +155,7 @@ def extraer_codigo(respuesta):
         return coincidencia.group(1).strip()
 
     return respuesta.strip()
+
 
 
 def ejecutar_codigo(ruta):
@@ -226,10 +241,14 @@ def resolver_problema(cliente, numero):
             texto_modelo = llamar_gemini(cliente, historial)
         except Exception as error:
             print(f"Error al consultar Gemini: {error}")
+
             registrar_intento(
-                numero, intento, "", "", str(error), 0, "error_gemini", None
+                numero, intento, "", "", str(error), 0,
+                "error_gemini", None
             )
-            break
+
+            print("Se volverá a intentar generar una solución.")
+            continue
 
         codigo = extraer_codigo(texto_modelo)
         salida = ""
@@ -358,4 +377,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print("\n\nAgente interrumpido manualmente.")
+        print("Los registros anteriores se conservaron.")
+        sys.exit(0)
