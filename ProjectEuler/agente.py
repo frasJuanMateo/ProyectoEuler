@@ -129,7 +129,6 @@ def llamar_gemini(cliente, historial):
 
 
 def extraer_codigo(respuesta):
-    # Busca un bloque de código Python
     patron = r"```(?:python)?\s*(.*?)```"
 
     coincidencia = re.search(
@@ -141,8 +140,6 @@ def extraer_codigo(respuesta):
     if coincidencia:
         return coincidencia.group(1).strip()
 
-    # Si Gemini no utiliza bloques Markdown,
-    # devuelve la respuesta directamente.
     return respuesta.strip()
 
 
@@ -179,7 +176,7 @@ def extraer_respuesta(salida):
     if not salida:
         return None
     ultima = salida.splitlines()[-1].strip()
-    return ultima if re.fullmatch(r"-?\\d+", ultima) else None
+    return ultima if re.fullmatch(r"-?\d+", ultima) else None
 
 
 def registrar_intento(numero, intento, codigo, salida, error,

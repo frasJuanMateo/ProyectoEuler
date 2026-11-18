@@ -1,0 +1,2 @@
+# Dependencias externas del agente de Project Euler
+google-genai
